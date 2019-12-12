@@ -362,9 +362,9 @@ int compare_order_lists(SQL_I_List<ORDER> *part_list1,
       return cmp;
   }
   if (elem1)
-    return CMP_GT_C;
-  if (elem2)
     return CMP_LT_C;
+  if (elem2)
+    return CMP_GT_C;
   return CMP_EQ;
 }
 
@@ -546,6 +546,22 @@ typedef int (*Item_window_func_cmp)(Item_window_func *f1,
      - window frame compatibility.
 
     The changes between the groups are marked by setting item_window_func->marker.
+
+    The sorting of the window functions is done in such a way such that the window
+    functions that can be computed together are adjacent and
+    the first window function in this list of compatible functions for sorting has the
+    LONGEST list for ordering.
+
+    For example lets consider these 3 window functions
+       sum(a) OVER (PARTITION BY a)
+       sum(a) OVER (PARTITION BY a, b)
+       sum(a) OVER (PARTITION BY a, b, c)
+
+    After sorting the order would be
+       sum(a) OVER (PARTITION BY a, b, c)
+       sum(a) OVER (PARTITION BY a, b)
+       sum(a) OVER (PARTITION BY a)
+    This would only require sorting once(sort criteria a,b,c).
 */
 
 static

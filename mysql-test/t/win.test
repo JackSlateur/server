@@ -2352,5 +2352,21 @@ SELECT (SELECT MIN('foo') OVER() FROM t1 LIMIT 1) as x;
 drop table t1;
 
 --echo #
+--echo # MDEV-19901: Wrong window function calculation
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 values (1, 1), (1, 2), (2, 3), (2, 4);
+
+SELECT
+ SUM(b) OVER () AS x,
+ SUM(b) OVER (PARTITION BY a) AS y,
+ SUM(b) OVER (ORDER BY b) AS z
+FROM t1
+ORDER BY z;
+
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
