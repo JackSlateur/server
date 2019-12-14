@@ -7,6 +7,8 @@
 --source include/have_log_bin.inc
 --source include/have_binlog_format_row.inc
 
+call mtr.add_suppression("Error while writing one row to the row-based binary log.*");
+
 SET AUTOCOMMIT=0;
 
 # Create 1st table

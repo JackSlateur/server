@@ -2,6 +2,7 @@ include/master-slave.inc
 [connection master]
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
 call mtr.add_suppression("Slave SQL: The incident LOST_EVENTS occured on the master. .*");
+call mtr.add_suppression("Error while writing one row to the row-based binary log.* ");
 SET GLOBAL max_binlog_cache_size = 4096;
 SET GLOBAL binlog_cache_size = 4096;
 SET GLOBAL max_binlog_stmt_cache_size = 4096;
@@ -10,12 +11,25 @@ disconnect master;
 connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
 CREATE TABLE t1(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=MYISAM;
 connection master;
-ERROR HY000: Writing one row to the row-based binary log failed
+ERROR HY000: Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage; increase this mysqld variable and try again
 include/wait_for_slave_sql_error_and_skip.inc [errno=1590]
+connection master;
+CREATE TABLE t2(a INT PRIMARY KEY, data VARCHAR(30000)) ENGINE=INNODB;
+ERROR HY000: Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again
+"*** One row should be present as second row will be rolledback ***"
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+1
+connection slave;
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+1
+"****** Clean up *******"
 connection master;
 SET GLOBAL max_binlog_cache_size= ORIGINAL_VALUE;
 SET GLOBAL binlog_cache_size= ORIGINAL_VALUE;
 SET GLOBAL max_binlog_stmt_cache_size= ORIGINAL_VALUE;
 SET GLOBAL binlog_stmt_cache_size= ORIGINAL_VALUE;
 DROP TABLE t1;
+DROP TABLE t2;
 include/rpl_end.inc

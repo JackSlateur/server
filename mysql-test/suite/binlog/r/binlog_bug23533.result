@@ -1,3 +1,4 @@
+call mtr.add_suppression("Error while writing one row to the row-based binary log.*");
 SET AUTOCOMMIT=0;
 CREATE TABLE t1 (a INT NOT NULL AUTO_INCREMENT, b TEXT, PRIMARY KEY(a)) ENGINE=InnoDB;
 SELECT COUNT(*) FROM t1;

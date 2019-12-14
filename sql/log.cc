@@ -5720,23 +5720,30 @@ int THD::binlog_write_table_map(TABLE *table, bool is_transactional,
   binlog_cache_data *cache_data=
     cache_mngr->get_binlog_cache_data(use_trans_cache(this, is_transactional));
 
-  if (with_annotate && *with_annotate)
-  {
-    Annotate_rows_log_event anno(table->in_use, is_transactional, false);
-    /* Annotate event should be written not more than once */
-    *with_annotate= 0;
-    if ((error= writer.write(&anno)))
-    {
-      if (my_errno == EFBIG)
-        cache_data->set_incident();
-      DBUG_RETURN(error);
-    }
-  }
-  if ((error= writer.write(&the_event)))
-    DBUG_RETURN(error);
+	if (with_annotate && *with_annotate)
+	{
+		Annotate_rows_log_event anno(table->in_use, is_transactional, false);
+		/* Annotate event should be written not more than once */
+		*with_annotate= 0;
+		if ((error= writer.write(&anno)))
+			goto write_err;
+	}
+	if ((error= writer.write(&the_event)))
+			goto write_err;
 
-  binlog_table_maps++;
-  DBUG_RETURN(0);
+	binlog_table_maps++;
+	DBUG_RETURN(0);
+
+write_err:
+	mysql_bin_log.set_write_error(this, is_transactional);
+	/*
+		 For non-transactional engine, data is written to table but writing to
+		 binary log failed. Hence report an incident.
+	*/
+	if (mysql_bin_log.check_write_error(this) && cache_data &&
+			!is_transactional)
+		cache_data->set_incident();
+	DBUG_RETURN(error);
 }
 
 /**
@@ -7196,6 +7203,17 @@ bool MYSQL_BIN_LOG::write_incident(THD *thd)
   else
   {
     mysql_mutex_unlock(&LOCK_log);
+  }
+
+	/*
+		 Upon writing incident event, check for thd->error() and print the
+		 relevant error message in the error log.
+	*/
+  if (!error && thd->is_error())
+  {
+    sql_print_error("Error while writing one row to the row-based binary log. "
+        "%s. An incident event is written to binary log "
+        "and slave will be stopped.\n",thd->get_stmt_da()->message());
   }
 
   DBUG_RETURN(error);
